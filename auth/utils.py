@@ -112,3 +112,12 @@ async def save_file_to_uploads(file: UploadFile, user_id: int):
         file_content = await file.read()
         uploaded_file.write(file_content)
     return full_path
+
+
+async def get_matching_users(
+        session: AsyncSession,
+        query: str,
+):
+    db_query = select(models.User).filter(models.User.username.ilike(f"%{query}%"))
+    result = await session.execute(db_query)
+    return result.scalars().all()

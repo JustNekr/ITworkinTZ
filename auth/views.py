@@ -1,14 +1,14 @@
 import os
 from typing import Annotated
 from datetime import timedelta
-from fastapi import APIRouter, Depends, Body, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, Body, HTTPException, UploadFile, File, Query
 from fastapi.openapi.models import Schema
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from auth import schema
 from auth.utils import authenticate_user, create_access_token, get_current_user, get_password_hash, create_new_user, \
-    save_file_to_uploads
+    save_file_to_uploads, get_matching_users
 from config import ACCESS_TOKEN_EXPIRE_MINUTES, UPLOADED_FILES_PATH
 from database import get_async_session
 
@@ -95,3 +95,14 @@ async def add_avatar(
     await session.commit()
     await session.refresh(current_user)
     return current_user
+
+
+@router.get("/search_users")
+async def search_users(
+        session: Annotated[AsyncSession, Depends(get_async_session)],
+        query: str = Query(None, title="Query", description="Search query"),
+):
+    if not query:
+        return {"msg": "provide a query parameter"}
+    matching_users = await get_matching_users(session, query)
+    return {"users": matching_users}
