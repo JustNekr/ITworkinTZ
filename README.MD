@@ -7,9 +7,10 @@ docker-compose up --build
 > /auth/create_user
 - Обновить юзера
 > /auth/update_user
-
 - чат с авторизацией и личными сообщениями (send to формируется из пользователей чата при раскрытии)
 > /chat  
+- Поиск юзера
+> /user_search
 
 
 
