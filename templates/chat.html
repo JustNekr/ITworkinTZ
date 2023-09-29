@@ -36,7 +36,7 @@
                 myFormData.append("username", username);
                 myFormData.append("password", password);
 
-                fetch('http://localhost:8000/auth/token', {
+                fetch('http://127.0.0.1:8000/auth/token', {
                     method: 'POST',
                     body: myFormData})
                     .then(response => response.json())
@@ -57,7 +57,7 @@
             }
             function connect(event) {
                 let token = document.getElementById("token")
-                ws = new WebSocket("ws://localhost:8000/chat/ws?token=" + token.value);
+                ws = new WebSocket("ws://127.0.0.1:8000/chat/ws?token=" + token.value);
                 ws.onmessage = function(event) {
                     let messages = document.getElementById('messages')
                     let message = document.createElement('li')
@@ -74,7 +74,7 @@
 
             function handleSendToChange(event) {
                 // event.preventDefault()
-                fetch('http://localhost:8000/chat/all_users')
+                fetch('http://127.0.0.1:8000/chat/all_users')
                 .then(response => response.json())
                 .then(response => {
                     let optionsToAdd = response.users_list

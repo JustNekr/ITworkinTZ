@@ -1,0 +1,41 @@
+version: '3.3'
+
+services:
+  web:
+    build: .
+    command: bash -c 'while !</dev/tcp/db/5432; do sleep 1; done; alembic upgrade head && uvicorn main:app --host 0.0.0.0'
+    volumes:
+      - diag_uploaded:/home/app/web/uploaded_files/
+    ports:
+      - 8000:8000
+    environment:
+      - DATABASE_URL="${DB_ENGINE}://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
+    depends_on:
+      - db
+    networks:
+      - network
+
+  db:
+    image: postgres:16-alpine
+    container_name: ${DB_HOST}
+    volumes:
+      - diag_pg_data:/var/lib/postgresql/data/
+    expose:
+      - ${DB_PORT}
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASS}
+      - POSTGRES_DB=${DB_NAME}
+    networks:
+      - network
+
+
+volumes:
+  diag_pg_data:
+#    external: true
+  diag_uploaded:
+#    external: true
+
+networks:
+  network:
+    driver: bridge

@@ -78,13 +78,17 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],
 
 async def create_new_user(
         session: AsyncSession,
-        user: schema.UserInDB,
+        user: schema.UserForDB,
         ):
-    user = models.User(**user.__dict__)
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    return user
+    user_from_db = await get_user(session, user.username)
+    if not user_from_db:
+        user = models.User(**user.__dict__)
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        return user
+    else:
+        return False
 
 
 async def update_user(

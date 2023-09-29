@@ -47,7 +47,7 @@ async def read_users_me(
     return current_user
 
 
-@router.post("/create_user", response_model=schema.UserInDB)
+@router.post("/create_user", response_model=schema.UserInDB | dict)
 async def create_user(
         user: Annotated[schema.NewUser, Body()],
         session: Annotated[AsyncSession, Depends(get_async_session)]
@@ -60,7 +60,7 @@ async def create_user(
         hash_password=get_password_hash(user.password)
     )
     user = await create_new_user(session, user)
-    return user
+    return user if user else {'msg': 'already exist'}
 
 
 @router.post("/update_user", response_model=schema.UserInDB)
