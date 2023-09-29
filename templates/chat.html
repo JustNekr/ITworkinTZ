@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Chat</title>
+    </head>
+    <body>
+        <label hidden>Token: <input type="text" id="token" autocomplete="off" value=""/></label>
+        <h1>WebSocket Chat</h1>
+        <form id="loginForm" onsubmit="loginUser(event)">
+            <input type="text" id="username"/>
+            <input type="text" id="password"/>
+            <button>Login</button>
+        </form>
+        <button id="connect" onclick="connect(event)" style="display: none">Connect</button>
+        <form id="chatForm" onsubmit="sendMessage(event)" style="display: none">
+            <label for="messageSendTo">Сообщение для:</label>
+            <select id="messageSendTo" onfocus="handleSendToChange()">
+                <option value="all">Всех</option>
+            </select>
+            <label for="messageText">Текст:</label>
+            <input type="text" id="messageText" autocomplete="off"/>
+            <button>Send</button>
+        </form>
+        <ul id='messages'>
+        </ul>
+        <script>
+            let ws = null;
+            function loginUser(event) {
+                event.preventDefault();
+
+                let myFormData = new FormData();
+
+                let username = document.getElementById('username').value
+                let password = document.getElementById('password').value
+
+                myFormData.append("username", username);
+                myFormData.append("password", password);
+
+                fetch('http://localhost:8000/auth/token', {
+                    method: 'POST',
+                    body: myFormData})
+                    .then(response => response.json())
+                    .then(response => {
+                        if (response.access_token) {
+                            // Скрыть форму
+                            document.getElementById('token').setAttribute('value', response.access_token)
+                            const loginForm = document.getElementById('loginForm');
+                            loginForm.style.display = 'none';
+                            // Отобразить форму чата
+                            const connectBtn = document.getElementById('connect');
+                            connectBtn.style.display = 'block';
+                        } else {
+                            console.error('Произошла ошибка ПОСЛЕ else:', response.statusText);
+                        }
+                    })
+                    .catch(error => console.error('Произошла ошибка после кетч:', error));
+            }
+            function connect(event) {
+                let token = document.getElementById("token")
+                ws = new WebSocket("ws://localhost:8000/chat/ws?token=" + token.value);
+                ws.onmessage = function(event) {
+                    let messages = document.getElementById('messages')
+                    let message = document.createElement('li')
+                    let content = document.createTextNode(event.data)
+                    message.appendChild(content)
+                    messages.appendChild(message)
+                };
+                const connectBtn = document.getElementById('connect');
+                connectBtn.style.display = 'none';
+                const chatForm = document.getElementById('chatForm');
+                chatForm.style.display = 'block';
+                event.preventDefault()
+            }
+
+            function handleSendToChange(event) {
+                // event.preventDefault()
+                fetch('http://localhost:8000/chat/all_users')
+                .then(response => response.json())
+                .then(response => {
+                    let optionsToAdd = response.users_list
+                    if (optionsToAdd) {
+                        let select = document.getElementById("messageSendTo");
+                        select.innerHTML = ''
+                        let option = document.createElement("option");
+                            option.text = "Всех";
+                            option.value = "all";
+                            select.add(option);
+                        for (let i = 0; i < optionsToAdd.length; i++) {
+                            let option = document.createElement("option");
+                            option.text = optionsToAdd[i];
+                            option.value = optionsToAdd[i];
+                            select.add(option);
+                        }
+                    }
+                })
+            }
+
+            function sendMessage(event) {
+                let send_to = document.getElementById("messageSendTo").value
+                let text = document.getElementById("messageText").value
+                let messageObj = {
+                    send_to: send_to,
+                    text: text
+                }
+                let jsonMessage = JSON.stringify(messageObj)
+                ws.send(jsonMessage)
+                text.value = ''
+                event.preventDefault()
+            }
+        </script>
+    </body>
+</html>
