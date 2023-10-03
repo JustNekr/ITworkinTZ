@@ -1,17 +1,18 @@
-from dotenv import load_dotenv
-import os
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-load_dotenv()
 
-DB_ENGINE = os.environ.get("DB_ENGINE")
-DB_HOST = os.environ.get("DB_HOST")
-DB_PORT = os.environ.get("DB_PORT")
-DB_NAME = os.environ.get("DB_NAME")
-DB_USER = os.environ.get("DB_USER")
-DB_PASS = os.environ.get("DB_PASS")
+class Settings(BaseSettings):
+    secret_key: str
+    algorithm: str
+    access_token_expire_minutes: int
+    upload_file_path: str = 'upload_files/'
+    model_config = SettingsConfigDict(env_file=".env")
+    db_engine: str
+    db_host: str
+    db_port: str
+    db_name: str
+    db_user: str
+    db_pass: str
 
-SECRET_KEY = os.environ.get("SECRET_KEY")
-ALGORITHM = os.environ.get("ALGORITHM")
-ACCESS_TOKEN_EXPIRE_MINUTES = os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES")
 
-UPLOADED_FILES_PATH = 'upload_files/'
+settings = Settings()

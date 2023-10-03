@@ -1,4 +1,7 @@
+from typing import Annotated, Union, Optional
+
 from pydantic import BaseModel
+from fastapi.param_functions import Form
 
 
 class Token(BaseModel):
@@ -7,29 +10,32 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    username: str | None = None
+    user_id: Union[int, None] = None
 
 
 class User(BaseModel):
-    username: str
-    phone_number: str | None = None
-    avatar_link: str | None = None
-    etc: str | None = None
+    username: Annotated[str, Form()]
+    phone_number: Annotated[Union[str, None], Form()] = None
+    etc: Annotated[Union[str, None], Form()] = None
 
 
 class NewUser(User):
-    password: str | None = None
+    password: Annotated[str, Form()]
 
 
 class UserForDB(User):
-    hash_password: str | None = None
+    hash_password: Annotated[str, Form()]
 
 
 class UserInDB(UserForDB):
-    id: int | None = None
+    id: int
+
+
+class UserFromDB(UserInDB):
+    avatar_link: str
 
 
 class UserToUpdate(BaseModel):
-    username: str | None = None
-    phone_number: str | None = None
-    etc: str | None = None
+    username: Annotated[Optional[Union[str, None]], Form()] = None
+    phone_number: Annotated[Union[str, None], Form()] = None
+    etc: Annotated[Union[str, None], Form()] = None

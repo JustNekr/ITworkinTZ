@@ -1,15 +1,15 @@
 import os
 from typing import Annotated
 from datetime import timedelta
-from fastapi import APIRouter, Depends, Body, HTTPException, UploadFile, File, Query
-from fastapi.openapi.models import Schema
+from fastapi import APIRouter, Depends, Body, HTTPException, UploadFile, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from auth import schema
-from auth.utils import authenticate_user, create_access_token, get_current_user, get_password_hash, create_new_user, \
-    save_file_to_uploads, get_matching_users
-from config import ACCESS_TOKEN_EXPIRE_MINUTES, UPLOADED_FILES_PATH
+from auth.models import User
+from auth.utils import authenticate_user, create_access_token, get_current_user, \
+    save_file_to_uploads, validate_file
+from config import settings
 from database import get_async_session
 
 from fastapi.security import OAuth2PasswordRequestForm
@@ -33,59 +33,60 @@ async def login_for_access_token(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token_expires = timedelta(minutes=int(ACCESS_TOKEN_EXPIRE_MINUTES))
+
+    access_token_expires = timedelta(minutes=int(settings.access_token_expire_minutes))
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data={"sub": str(user.id)}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.get("/users/me/", response_model=schema.UserInDB)
-async def read_users_me(
-    current_user: Annotated[schema.UserInDB, Depends(get_current_user)]
+@router.get("/user", response_model=schema.UserFromDB)
+async def get_self_user(
+    current_user: Annotated[schema.UserFromDB, Depends(get_current_user)]
 ):
     return current_user
 
 
-@router.post("/create_user", response_model=schema.UserInDB | dict)
+@router.post("/user", response_model=schema.UserInDB | dict)
 async def create_user(
-        user: Annotated[schema.NewUser, Body()],
-        session: Annotated[AsyncSession, Depends(get_async_session)]
+        user: Annotated[schema.NewUser, Depends()],
+        session: Annotated[AsyncSession, Depends(get_async_session)],
+        response: Response
 ):
-    user = schema.UserForDB(
-        username=user.username,
-        avatar_link=user.avatar_link,
-        phone_number=user.avatar_link,
-        etc=user.etc,
-        hash_password=get_password_hash(user.password)
-    )
-    user = await create_new_user(session, user)
-    return user if user else {'msg': 'already exist'}
+    user = await User.create(session, user)
+    if user:
+        return user
+    else:
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return {'msg': 'already exist'}
 
 
-@router.post("/update_user", response_model=schema.UserInDB)
+@router.put("/user", response_model=schema.UserInDB)
 async def update_user(
         current_user: Annotated[schema.UserInDB, Depends(get_current_user)],
         session: Annotated[AsyncSession, Depends(get_async_session)],
-        username: Annotated[str | None, Body()] = None,
-        phone_number: Annotated[str | None, Body()] = None,
-        etc: Annotated[str | None, Body()] = None,
-
+        user_to_update: Annotated[schema.UserToUpdate, Depends()],
 ):
-    current_user.username = username if username else current_user.username
-    current_user.phone_number = phone_number if phone_number else current_user.phone_number
-    current_user.etc = etc if etc else current_user.etc
-    session.add(current_user)
-    await session.commit()
-    await session.refresh(current_user)
-    return current_user
+    return await current_user.update(session, user_to_update)
 
 
-@router.post("/avatar", response_model=schema.UserInDB)
+@router.get("/users/search")
+async def search_users(
+        session: Annotated[AsyncSession, Depends(get_async_session)],
+        query: str = Query(None, title="Query", description="Search query"),
+):
+    if not query:
+        return {"msg": "provide a query parameter"}
+    matching_users = await User.get_matching_users(session, query)
+    return {"users": matching_users}
+
+
+@router.post("/user/avatar", response_model=schema.UserInDB)
 async def add_avatar(
         current_user: Annotated[schema.UserInDB, Depends(get_current_user)],
         session: Annotated[AsyncSession, Depends(get_async_session)],
-        avatar: UploadFile = File(...),
+        avatar: Annotated[UploadFile, Depends(validate_file)]
 ):
     avatar_path = None
     if avatar:
@@ -95,14 +96,3 @@ async def add_avatar(
     await session.commit()
     await session.refresh(current_user)
     return current_user
-
-
-@router.get("/search_users")
-async def search_users(
-        session: Annotated[AsyncSession, Depends(get_async_session)],
-        query: str = Query(None, title="Query", description="Search query"),
-):
-    if not query:
-        return {"msg": "provide a query parameter"}
-    matching_users = await get_matching_users(session, query)
-    return {"users": matching_users}

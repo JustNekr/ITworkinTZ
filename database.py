@@ -20,10 +20,10 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.ext.asyncio import async_sessionmaker
-from config import DB_HOST, DB_NAME, DB_PASS, DB_PORT, DB_USER, DB_ENGINE
+from config import settings
 
-# DATABASE_URL = "postgresql+asyncpg://postgres:1234@localhost:5432/postgres"
-DATABASE_URL = f"{DB_ENGINE}://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+DATABASE_URL = f"{settings.db_engine}://{settings.db_user}:{settings.db_pass}@{settings.db_host}:{settings.db_port}/{settings.db_name}"
 
 
 engine = create_async_engine(DATABASE_URL, echo=True)

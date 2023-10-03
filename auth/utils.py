@@ -6,16 +6,13 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status, UploadFile
 from passlib.context import CryptContext
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import schema
 from auth import models
 
-# to get a string like this run:
-# openssl rand -hex 32
-from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, UPLOADED_FILES_PATH
 from database import get_async_session
+from config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
@@ -29,14 +26,8 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 
-async def get_user(session: AsyncSession, username: str):
-    query = select(models.User).filter(models.User.username == username)
-    result = await session.execute(query)
-    return result.scalars().first()
-
-
 async def authenticate_user(session: AsyncSession, username: str, password: str):
-    user: schema.UserInDB = await get_user(session, username)
+    user: schema.UserInDB = await models.User.get_by_username(session, username)
     if not user:
         return False
     if not verify_password(password, user.hash_password):
@@ -49,9 +40,9 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=int(ACCESS_TOKEN_EXPIRE_MINUTES))
+        expire = datetime.utcnow() + timedelta(minutes=int(settings.access_token_expire_minutes))
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
     return encoded_jwt
 
 
@@ -63,48 +54,22 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        user_id: int = int(payload.get("sub"))
+        if user_id is None:
             raise credentials_exception
-        token_data = schema.TokenData(username=username)
-    except JWTError:
+        token_data = schema.TokenData(user_id=user_id)
+    except JWTError as err:
+        print(err)
         raise credentials_exception
-    user = await get_user(session, username=token_data.username)
+    user = await models.User.get_by_id(session, user_id=token_data.user_id)
     if user is None:
         raise credentials_exception
     return user
 
 
-async def create_new_user(
-        session: AsyncSession,
-        user: schema.UserForDB,
-        ):
-    user_from_db = await get_user(session, user.username)
-    if not user_from_db:
-        user = models.User(**user.__dict__)
-        session.add(user)
-        await session.commit()
-        await session.refresh(user)
-        return user
-    else:
-        return False
-
-
-async def update_user(
-        session: AsyncSession,
-        user: schema.UserInDB,
-        ):
-    user = models.User(**user.__dict__)
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    return user
-
-
 async def save_file_to_uploads(file: UploadFile, user_id: int):
-    print()
-    directory = os.path.join(UPLOADED_FILES_PATH, str(user_id))
+    directory = os.path.join(settings.upload_file_path, str(user_id))
     if not os.path.exists(directory):
         os.mkdir(directory)
     full_path = os.path.join(directory, file.filename)
@@ -114,10 +79,11 @@ async def save_file_to_uploads(file: UploadFile, user_id: int):
     return full_path
 
 
-async def get_matching_users(
-        session: AsyncSession,
-        query: str,
-):
-    db_query = select(models.User).filter(models.User.username.ilike(f"%{query}%"))
-    result = await session.execute(db_query)
-    return result.scalars().all()
+def validate_file(file: UploadFile):
+    allowed_types = ["image/jpeg", "image/png"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Only JPEG and PNG files allowed")
+    max_size = 2 * 1024 * 1024  # 2 MB
+    if file.size > max_size:
+        raise HTTPException(status_code=400, detail="File size exceeds 2 MB")
+    return file
