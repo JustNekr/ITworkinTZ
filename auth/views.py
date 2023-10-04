@@ -82,17 +82,14 @@ async def search_users(
     return {"users": matching_users}
 
 
-@router.post("/user/avatar", response_model=schema.UserInDB)
+@router.post("/user/avatar", response_model=schema.UserFromDB)
 async def add_avatar(
-        current_user: Annotated[schema.UserInDB, Depends(get_current_user)],
+        current_user: Annotated[User, Depends(get_current_user)],
         session: Annotated[AsyncSession, Depends(get_async_session)],
         avatar: Annotated[UploadFile, Depends(validate_file)]
 ):
     avatar_path = None
     if avatar:
         avatar_path: str = await save_file_to_uploads(avatar, current_user.id)
-    current_user.avatar_link = avatar_path
-    session.add(current_user)
-    await session.commit()
-    await session.refresh(current_user)
-    return current_user
+    return await current_user.add_avatar_link(session, avatar_path)
+

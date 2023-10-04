@@ -84,3 +84,13 @@ class User(Base):
         await session.commit()
         await session.refresh(self)
         return self
+
+    async def add_avatar_link(
+            self,
+            session: AsyncSession,
+            avatar_link: str,
+    ):
+        self.avatar_link = avatar_link
+        await session.commit()
+        await session.refresh(self)
+        return self
